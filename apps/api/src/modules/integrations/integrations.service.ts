@@ -33,28 +33,40 @@ export class IntegrationsService {
       where: { type: 'whatsapp_evolution' },
     });
 
-    if (existing) {
-      await this.tenantPrisma.client.integration.update({
-        where: { id: existing.id },
-        data: {
-          instanceName: dto.instanceName,
-          credentialsEncrypted,
-          // Salvar a URL/API key não significa que o WhatsApp já está
-          // conectado — só depois de gerar e escanear o QR code é que
-          // sabemos isso de verdade (via getConnectionStatus).
-          status: 'disconnected',
-        },
-      });
-    } else {
-      await this.tenantPrisma.client.integration.create({
-        data: {
-          companyId: this.tenantPrisma.companyId,
-          type: 'whatsapp_evolution',
-          instanceName: dto.instanceName,
-          credentialsEncrypted,
-          status: 'disconnected',
-        },
-      });
+    try {
+      if (existing) {
+        await this.tenantPrisma.client.integration.update({
+          where: { id: existing.id },
+          data: {
+            instanceName: dto.instanceName,
+            credentialsEncrypted,
+            // Salvar a URL/API key não significa que o WhatsApp já está
+            // conectado — só depois de gerar e escanear o QR code é que
+            // sabemos isso de verdade (via getConnectionStatus).
+            status: 'disconnected',
+          },
+        });
+      } else {
+        await this.tenantPrisma.client.integration.create({
+          data: {
+            companyId: this.tenantPrisma.companyId,
+            type: 'whatsapp_evolution',
+            instanceName: dto.instanceName,
+            credentialsEncrypted,
+            status: 'disconnected',
+          },
+        });
+      }
+    } catch (err: any) {
+      // instanceName é único globalmente no banco (não só por empresa) —
+      // se outra empresa já estiver usando esse mesmo nome, avisa em vez
+      // de deixar estourar um erro de banco sem explicação.
+      if (err?.code === 'P2002') {
+        throw new BadRequestException(
+          'Esse nome de instância já está em uso por outra empresa. Escolha um nome diferente (ex: o nome da sua empresa, sem espaços).',
+        );
+      }
+      throw err;
     }
 
     return this.getWhatsapp();
