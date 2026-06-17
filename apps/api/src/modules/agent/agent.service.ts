@@ -123,6 +123,11 @@ export class AgentService {
 
     if (!instanceName || !text || !remoteJid) return; // por enquanto só tratamos mensagens de texto
 
+    // JIDs de grupo sempre terminam em "@g.us" (diferente de uma conversa
+    // individual, que termina em "@s.whatsapp.net"). O agente não deve
+    // responder dentro de grupos — só atendimento individual.
+    if (remoteJid.endsWith('@g.us')) return;
+
     const customerPhone = phoneFromRemoteJid(remoteJid);
     const pushName: string | undefined = data.pushName;
 
