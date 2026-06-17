@@ -45,52 +45,66 @@ export class PlatformAdminService {
   // consegue logar com essas credenciais imediatamente.
   async createCompany(dto: CreateCompanyDto) {
     const baseSlug = slugify(dto.companyName) || 'empresa';
-    let slug = baseSlug;
-    let attempt = 0;
-    while (await this.prisma.company.findUnique({ where: { slug } })) {
-      attempt += 1;
-      slug = `${baseSlug}-${attempt}`;
-    }
 
     const plan = dto.planId
       ? await this.prisma.plan.findUnique({ where: { id: dto.planId } })
       : await this.prisma.plan.findFirst({ orderBy: { monthlyPrice: 'asc' } });
 
-    const companyId = randomUUID();
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    try {
-      return await this.prisma.runInTenant(companyId, async (tx) => {
-        const company = await tx.company.create({
-          data: {
-            id: companyId,
-            name: dto.companyName,
-            slug,
-            planId: plan?.id,
-          },
-        });
+    let slug = baseSlug;
+    let attempt = 0;
+    const maxAttempts = 5;
 
-        const user = await tx.user.create({
-          data: {
-            companyId,
-            name: dto.name,
-            email: dto.email,
-            passwordHash,
-            role: 'owner',
-          },
-        });
+    while (attempt <= maxAttempts) {
+      const companyId = randomUUID();
+      try {
+        return await this.prisma.runInTenant(companyId, async (tx) => {
+          const company = await tx.company.create({
+            data: {
+              id: companyId,
+              name: dto.companyName,
+              slug,
+              planId: plan?.id,
+            },
+          });
 
-        return {
-          company: { id: company.id, name: company.name, slug: company.slug },
-          user: { id: user.id, name: user.name, email: user.email },
-        };
-      });
-    } catch (err: any) {
-      if (err?.code === 'P2002') {
-        throw new ConflictException('Este e-mail já está cadastrado.');
+          const user = await tx.user.create({
+            data: {
+              companyId,
+              name: dto.name,
+              email: dto.email,
+              passwordHash,
+              role: 'owner',
+            },
+          });
+
+          return {
+            company: { id: company.id, name: company.name, slug: company.slug },
+            user: { id: user.id, name: user.name, email: user.email },
+          };
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          const target: string[] = err.meta?.target ?? [];
+          if (target.includes('email')) {
+            throw new ConflictException('Este e-mail já está cadastrado.');
+          }
+          if (target.includes('slug')) {
+            // Não há como checar slugs de outras empresas antes (o RLS
+            // esconde tudo fora do tenant atual) — então a forma
+            // confiável de detectar colisão é deixar o banco recusar e
+            // tentar de novo com um sufixo.
+            attempt += 1;
+            slug = `${baseSlug}-${attempt}`;
+            continue;
+          }
+        }
+        throw err;
       }
-      throw err;
     }
+
+    throw new ConflictException('Não foi possível gerar um identificador único para esta empresa.');
   }
 
   // Reaproveita a mesma técnica do seed: como a política de RLS de
