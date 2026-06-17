@@ -1,6 +1,5 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { TenantPrismaService } from '../../common/tenant-prisma.service';
-import { PrismaService } from '../../prisma/prisma.service';
 import { RagService } from '../rag/rag.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 
@@ -10,7 +9,6 @@ export class DocumentsService {
 
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly prisma: PrismaService,
     private readonly rag: RagService,
   ) {}
 
@@ -40,7 +38,7 @@ export class DocumentsService {
     // texto que cabe num campo de "colar conteúdo" no painel. Para
     // arquivos grandes, mover isso para um worker em background.
     try {
-      await this.rag.indexDocument(this.prisma, companyId, document.id, dto.content);
+      await this.rag.indexDocument(this.tenantPrisma.client, companyId, document.id, dto.content);
       return this.tenantPrisma.client.document.update({
         where: { id: document.id },
         data: { status: 'ready' },

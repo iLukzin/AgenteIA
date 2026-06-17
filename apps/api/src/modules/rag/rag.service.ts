@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { OpenAiService } from '../openai/openai.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -54,12 +55,20 @@ export class RagService {
   }
 
   /**
-   * Gera os embeddings ANTES de abrir qualquer transação (cada
-   * chamada à OpenAI pode levar um pouco), e só então abre uma
-   * transação curta para gravar tudo de uma vez.
+   * Gera os embeddings ANTES de tocar no banco (cada chamada à OpenAI
+   * pode levar um pouco), e só então grava tudo de uma vez.
+   *
+   * Recebe `tx` — o client transacional JÁ ABERTO pelo
+   * TenantRlsInterceptor para esta requisição — em vez de abrir sua
+   * própria transação. Isso é necessário porque o registro do
+   * documento (criado em DocumentsService.create, na mesma transação
+   * de requisição) ainda não foi confirmado no banco nesse ponto; uma
+   * transação nova e separada não conseguiria ver esse documento
+   * ainda, e a gravação dos trechos falharia por violar a chave
+   * estrangeira para document_id.
    */
   async indexDocument(
-    prisma: PrismaService,
+    tx: Prisma.TransactionClient,
     companyId: string,
     documentId: string,
     content: string,
@@ -71,24 +80,22 @@ export class RagService {
       embeddings.push(await this.openai.embed(chunk));
     }
 
-    await prisma.runInTenant(companyId, async (tx) => {
-      for (let i = 0; i < chunks.length; i++) {
-        const dbChunk = await tx.documentChunk.create({
-          data: {
-            companyId,
-            documentId,
-            chunkIndex: i,
-            content: chunks[i],
-            tokenCount: Math.ceil(chunks[i].length / 4),
-          },
-        });
+    for (let i = 0; i < chunks.length; i++) {
+      const dbChunk = await tx.documentChunk.create({
+        data: {
+          companyId,
+          documentId,
+          chunkIndex: i,
+          content: chunks[i],
+          tokenCount: Math.ceil(chunks[i].length / 4),
+        },
+      });
 
-        await tx.$executeRaw`
-          INSERT INTO embeddings (company_id, chunk_id, embedding)
-          VALUES (${companyId}::uuid, ${dbChunk.id}::uuid, ${toVectorLiteral(embeddings[i])}::vector)
-        `;
-      }
-    });
+      await tx.$executeRaw`
+        INSERT INTO embeddings (company_id, chunk_id, embedding)
+        VALUES (${companyId}::uuid, ${dbChunk.id}::uuid, ${toVectorLiteral(embeddings[i])}::vector)
+      `;
+    }
 
     this.logger.log(`Documento ${documentId} indexado com ${chunks.length} trecho(s).`);
     return chunks.length;
