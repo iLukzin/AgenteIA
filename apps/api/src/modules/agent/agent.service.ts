@@ -114,19 +114,28 @@ export class AgentService {
   async handleIncomingMessage(rawPayload: any): Promise<void> {
     if (rawPayload?.event !== 'messages.upsert') return; // ignora outros tipos de evento
     const data = rawPayload?.data;
-    if (!data || data.key?.fromMe) return; // ignora eco de mensagens enviadas pela própria empresa
+    if (!data || data.key?.fromMe) {
+      if (data?.key?.fromMe) this.logger.log('Mensagem ignorada: foi enviada pelo próprio número conectado (eco).');
+      return;
+    }
 
     const instanceName: string | undefined = rawPayload?.instance;
     const text: string | undefined =
       data.message?.conversation || data.message?.extendedTextMessage?.text;
     const remoteJid: string | undefined = data.key?.remoteJid;
 
-    if (!instanceName || !text || !remoteJid) return; // por enquanto só tratamos mensagens de texto
+    if (!instanceName || !text || !remoteJid) {
+      this.logger.warn('Mensagem ignorada: faltou instanceName, texto ou remoteJid no payload (provavelmente não é uma mensagem de texto).');
+      return; // por enquanto só tratamos mensagens de texto
+    }
 
     // JIDs de grupo sempre terminam em "@g.us" (diferente de uma conversa
     // individual, que termina em "@s.whatsapp.net"). O agente não deve
     // responder dentro de grupos — só atendimento individual.
-    if (remoteJid.endsWith('@g.us')) return;
+    if (remoteJid.endsWith('@g.us')) {
+      this.logger.log(`Mensagem de grupo ignorada (${remoteJid}).`);
+      return;
+    }
 
     const customerPhone = phoneFromRemoteJid(remoteJid);
     const pushName: string | undefined = data.pushName;

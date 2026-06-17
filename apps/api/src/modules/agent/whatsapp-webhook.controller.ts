@@ -1,10 +1,12 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Logger, Post, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { AgentService } from './agent.service';
 
 @Controller('webhooks/whatsapp')
 export class WhatsappWebhookController {
+  private readonly logger = new Logger(WhatsappWebhookController.name);
+
   constructor(private readonly agentService: AgentService) {}
 
   @Public()
@@ -17,6 +19,12 @@ export class WhatsappWebhookController {
     res.status(200).json({ received: true });
 
     const event = payload?.event;
+    const instance = payload?.instance;
+
+    // Registra a chegada de TODO evento, mesmo os que não tratamos —
+    // sem isso, "a mensagem nunca chegou" e "a mensagem chegou mas foi
+    // ignorada por algum filtro" ficam indistinguíveis no log.
+    this.logger.log(`Evento recebido: "${event}" da instância "${instance}".`);
 
     if (event === 'messages.upsert') {
       this.agentService.handleIncomingMessage(payload).catch((err) => {
