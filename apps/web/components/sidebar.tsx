@@ -13,8 +13,10 @@ import {
   BookOpen,
   Settings,
   LogOut,
+  Building2,
+  Tags,
 } from 'lucide-react';
-import { logout } from '@/lib/auth';
+import { logout, CurrentUser } from '@/lib/auth';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Visão geral', icon: LayoutDashboard },
@@ -27,7 +29,12 @@ const NAV_ITEMS = [
   { href: '/base-conhecimento', label: 'Base de conhecimento', icon: BookOpen },
 ];
 
-export function Sidebar() {
+const PLATFORM_ADMIN_ITEMS = [
+  { href: '/empresas', label: 'Empresas clientes', icon: Building2 },
+  { href: '/planos', label: 'Planos', icon: Tags },
+];
+
+export function Sidebar({ user }: { user?: CurrentUser | null }) {
   const pathname = usePathname();
 
   return (
@@ -36,7 +43,7 @@ export function Sidebar() {
         <span className="text-lg font-semibold text-brand-900">Vetor AI</span>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
@@ -53,6 +60,30 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {user?.isPlatformAdmin && (
+          <>
+            <div className="pt-4 pb-1 px-3 text-xs font-medium uppercase text-gray-400">
+              Administração
+            </div>
+            {PLATFORM_ADMIN_ITEMS.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={clsx(
+                    'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    active ? 'bg-brand-50 text-brand-800' : 'text-gray-600 hover:bg-gray-50',
+                  )}
+                >
+                  <Icon size={18} />
+                  {label}
+                </Link>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       <div className="px-3 py-4 border-t border-gray-100 space-y-1">

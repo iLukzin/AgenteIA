@@ -17,6 +17,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { AgentModule } from './modules/agent/agent.module';
+import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { AgentModule } from './modules/agent/agent.module';
     DashboardModule,
     IntegrationsModule,
     AgentModule,
+    PlatformAdminModule,
   ],
   providers: [
     // Ordem importa: o guard roda primeiro (autentica e popula req.user),

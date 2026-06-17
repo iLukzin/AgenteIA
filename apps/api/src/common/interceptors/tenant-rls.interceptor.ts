@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { Observable, from, firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { IS_PLATFORM_ROUTE_KEY } from '../decorators/platform-route.decorator';
 import {
   TENANT_PRISMA_KEY,
   TENANT_COMPANY_ID_KEY,
@@ -44,7 +45,11 @@ export class TenantRlsInterceptor implements NestInterceptor {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) {
+    const isPlatformRoute = this.reflector.getAllAndOverride<boolean>(IS_PLATFORM_ROUTE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic || isPlatformRoute) {
       return next.handle();
     }
 

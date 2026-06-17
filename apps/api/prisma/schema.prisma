@@ -67,15 +67,16 @@ model Company {
 }
 
 model User {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId    String    @map("company_id") @db.Uuid
-  name         String    @db.VarChar(150)
-  email        String    @unique @db.VarChar(150)
-  passwordHash String    @map("password_hash")
-  role         String    @default("admin") @db.VarChar(20)
-  active       Boolean   @default(true)
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  name             String    @db.VarChar(150)
+  email            String    @unique @db.VarChar(150)
+  passwordHash     String    @map("password_hash")
+  role             String    @default("admin") @db.VarChar(20)
+  active           Boolean   @default(true)
+  isPlatformAdmin  Boolean   @default(false) @map("is_platform_admin")
+  lastLoginAt      DateTime? @map("last_login_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   company              Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignedConversations Conversation[] @relation("AssignedUser")

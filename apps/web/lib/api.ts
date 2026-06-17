@@ -36,6 +36,15 @@ export async function apiFetch<T = any>(
 
   if (res.status === 401) {
     clearToken();
+    // Se a própria chamada de login falhou (senha errada, usuário não
+    // existe etc.), NÃO force o redirect — deixa o erro real (vindo do
+    // corpo da resposta) aparecer na tela de login, em vez de mascarar
+    // tudo com "Sessão expirada" e recarregar a página antes de dar
+    // tempo de ler.
+    if (path === '/auth/login') {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(401, body.message || 'Credenciais inválidas');
+    }
     if (typeof window !== 'undefined') window.location.href = '/login';
     throw new ApiError(401, 'Sessão expirada');
   }

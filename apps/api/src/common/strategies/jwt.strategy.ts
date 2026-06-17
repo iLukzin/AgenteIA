@@ -8,6 +8,7 @@ interface JwtPayload {
   companyId: string;
   role: string;
   email: string;
+  isPlatformAdmin?: boolean;
 }
 
 @Injectable()
@@ -27,6 +28,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       companyId: payload.companyId,
       role: payload.role,
       email: payload.email,
+      isPlatformAdmin: payload.isPlatformAdmin ?? false,
     };
   }
 }

@@ -5,6 +5,7 @@ export interface AuthenticatedUser {
   companyId: string;
   role: string;
   email: string;
+  isPlatformAdmin: boolean;
 }
 
 /**

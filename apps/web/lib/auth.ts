@@ -8,6 +8,7 @@ export interface CurrentUser {
   companyId: string;
   role: string;
   email: string;
+  isPlatformAdmin: boolean;
 }
 
 export async function loginRequest(email: string, password: string) {

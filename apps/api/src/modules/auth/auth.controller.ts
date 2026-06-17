@@ -14,6 +14,9 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  // Não existe cadastro público — só o admin da plataforma cria
+  // empresas novas, em /platform-admin/companies (módulo platform-admin).
+
   // Rota protegida normal — passa pelo TenantRlsInterceptor, então só
   // confirma os dados já presentes no token (não precisa ir ao banco).
   @Get('me')

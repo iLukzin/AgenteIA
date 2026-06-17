@@ -7,6 +7,7 @@ const STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-blue-50 text-blue-800',
   confirmed: 'bg-green-50 text-green-800',
   cancelled: 'bg-red-50 text-red-800',
+  suspended: 'bg-amber-50 text-amber-800',
   completed: 'bg-gray-100 text-gray-700',
   no_show: 'bg-red-50 text-red-800',
   new: 'bg-blue-50 text-blue-800',

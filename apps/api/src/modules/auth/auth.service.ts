@@ -9,9 +9,9 @@ interface AuthUserRow {
   company_id: string;
   name: string;
   email: string;
-  password_hash: string;
   role: string;
   active: boolean;
+  is_platform_admin: boolean;
 }
 
 @Injectable()
@@ -22,10 +22,10 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    // Usa a função auth_find_user_by_email (migration-002-auth-lookup.sql),
-    // a única consulta do sistema que legitimamente ignora RLS — porque
-    // neste momento ainda não sabemos a qual empresa o usuário pertence.
-    const rows = await this.prisma.$queryRaw<AuthUserRow[]>`
+    // Usa a função auth_find_user_by_email (migration-002/004), a única
+    // consulta do sistema que legitimamente ignora RLS — porque neste
+    // momento ainda não sabemos a qual empresa o usuário pertence.
+    const rows = await this.prisma.$queryRaw<(AuthUserRow & { password_hash: string })[]>`
       SELECT * FROM auth_find_user_by_email(${dto.email})
     `;
     const user = rows[0];
@@ -39,11 +39,16 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
+    return this.buildAuthResponse(user);
+  }
+
+  private buildAuthResponse(user: AuthUserRow) {
     const payload = {
       sub: user.id,
       companyId: user.company_id,
       role: user.role,
       email: user.email,
+      isPlatformAdmin: user.is_platform_admin,
     };
 
     return {
@@ -54,6 +59,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         companyId: user.company_id,
+        isPlatformAdmin: user.is_platform_admin,
       },
     };
   }
