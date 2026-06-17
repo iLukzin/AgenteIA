@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 
@@ -12,5 +12,9 @@ export class DocumentsController {
 
   @Get() findAll() {
     return this.documentsService.findAll();
+  }
+
+  @Delete(':id') delete(@Param('id') id: string) {
+    return this.documentsService.delete(id);
   }
 }

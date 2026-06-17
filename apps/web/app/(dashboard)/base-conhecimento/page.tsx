@@ -44,6 +44,11 @@ export default function BaseConhecimentoPage() {
     }
   }
 
+  async function handleDelete(id: string) {
+    await api.delete(`/documents/${id}`);
+    load();
+  }
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-900 mb-1">Base de conhecimento</h1>
@@ -86,6 +91,7 @@ export default function BaseConhecimentoPage() {
           <Th>Título</Th>
           <Th>Status</Th>
           <Th>Adicionado em</Th>
+          <Th>Ações</Th>
         </Thead>
         <tbody>
           {documents.map((doc) => (
@@ -93,11 +99,19 @@ export default function BaseConhecimentoPage() {
               <Td>{doc.filename}</Td>
               <Td><Badge status={doc.status} /></Td>
               <Td>{new Date(doc.createdAt).toLocaleString('pt-BR')}</Td>
+              <Td>
+                <button
+                  onClick={() => handleDelete(doc.id)}
+                  className="text-sm text-red-600 hover:underline"
+                >
+                  Excluir
+                </button>
+              </Td>
             </Tr>
           ))}
           {documents.length === 0 && (
             <Tr>
-              <Td className="text-gray-400" colSpan={3}>
+              <Td className="text-gray-400" colSpan={4}>
                 Nada na base de conhecimento ainda.
               </Td>
             </Tr>

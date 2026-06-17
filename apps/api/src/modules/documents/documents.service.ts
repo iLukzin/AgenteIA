@@ -51,4 +51,10 @@ export class DocumentsService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async delete(id: string) {
+    // onDelete: Cascade no schema cuida dos chunks e embeddings junto.
+    await this.tenantPrisma.client.document.delete({ where: { id } });
+    return { deleted: true };
+  }
 }
