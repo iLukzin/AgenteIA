@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OpenAiService, ChatMessage, ToolDefinition } from '../openai/openai.service';
 import { RagService } from '../rag/rag.service';
-import { EvolutionApiService } from './evolution-api.service';
+import { EvolutionApiService } from '../../common/evolution-api.service';
 import { decrypt } from '../../common/crypto.util';
 import { phoneFromRemoteJid } from '../../common/phone.util';
 import { isWithinBusinessHours } from '../../common/business-hours.util';

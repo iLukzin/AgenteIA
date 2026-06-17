@@ -16,6 +16,8 @@ const STATUS_COLORS: Record<string, string> = {
   won: 'bg-green-50 text-green-800',
   lost: 'bg-red-50 text-red-800',
   active: 'bg-green-50 text-green-800',
+  connected: 'bg-green-50 text-green-800',
+  pending: 'bg-amber-50 text-amber-800',
   disconnected: 'bg-gray-100 text-gray-600',
   processing: 'bg-amber-50 text-amber-800',
   ready: 'bg-green-50 text-green-800',

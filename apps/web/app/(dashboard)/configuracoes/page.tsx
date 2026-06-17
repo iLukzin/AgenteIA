@@ -143,12 +143,40 @@ function WhatsappIntegrationForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [generatingQr, setGeneratingQr] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+
   useEffect(() => {
     api.get<WhatsappIntegration>('/integrations/whatsapp').then((data) => {
       setIntegration(data);
       if (data.instanceName) setInstanceName(data.instanceName);
     });
   }, []);
+
+  // Enquanto o QR code estiver na tela e ainda não tiver conectado,
+  // checa o status a cada poucos segundos — assim que o celular
+  // escanear, a tela atualiza sozinha, sem precisar de F5.
+  useEffect(() => {
+    if (!qrCode) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const status = await api.get<WhatsappIntegration>('/integrations/whatsapp/status');
+        setIntegration(status);
+        if (status.status === 'connected') {
+          setQrCode(null);
+          setPairingCode(null);
+          setMessage('WhatsApp conectado com sucesso!');
+        }
+      } catch {
+        // Ignora falhas pontuais de polling — tenta de novo no próximo ciclo.
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [qrCode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -163,7 +191,7 @@ function WhatsappIntegrationForm() {
       });
       setIntegration(result);
       setApiKey('');
-      setMessage('Integração salva.');
+      setMessage('Integração salva. Agora você já pode gerar o QR code abaixo.');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erro ao salvar integração.');
     } finally {
@@ -171,11 +199,28 @@ function WhatsappIntegrationForm() {
     }
   }
 
+  async function handleGenerateQrCode() {
+    setGeneratingQr(true);
+    setQrError(null);
+    setMessage(null);
+    try {
+      const result = await api.post<{ qrCodeBase64: string; pairingCode?: string }>(
+        '/integrations/whatsapp/qrcode',
+      );
+      setQrCode(result.qrCodeBase64);
+      setPairingCode(result.pairingCode ?? null);
+    } catch (err) {
+      setQrError(err instanceof ApiError ? err.message : 'Erro ao gerar o QR code.');
+    } finally {
+      setGeneratingQr(false);
+    }
+  }
+
   return (
     <Card className="space-y-4 max-w-2xl mt-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-gray-700">Integração com WhatsApp</h2>
-        {integration && <Badge status={integration.configured ? 'active' : 'disconnected'} />}
+        {integration?.configured && <Badge status={integration.status ?? 'disconnected'} />}
       </div>
 
       <p className="text-sm text-gray-500">
@@ -231,6 +276,42 @@ function WhatsappIntegrationForm() {
           {saving ? 'Salvando...' : 'Salvar integração'}
         </Button>
       </form>
+
+      {integration?.configured && (
+        <div className="pt-4 border-t border-gray-100 space-y-3">
+          <h3 className="text-sm font-medium text-gray-700">Conectar o WhatsApp</h3>
+
+          {integration.status === 'connected' && !qrCode ? (
+            <p className="text-sm text-green-700">
+              WhatsApp conectado. Se precisar reconectar (ex: depois de deslogar no celular),
+              gere um QR code novo abaixo.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500">
+              Clique no botão, abra o WhatsApp no celular em Configurações → Dispositivos
+              conectados → Conectar dispositivo, e escaneie o código.
+            </p>
+          )}
+
+          {qrCode && (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <img src={qrCode} alt="QR code para conectar o WhatsApp" className="w-56 h-56 border border-gray-200 rounded-lg" />
+              {pairingCode && (
+                <p className="text-xs text-gray-400">
+                  Ou use o código de pareamento: <span className="font-mono">{pairingCode}</span>
+                </p>
+              )}
+              <p className="text-xs text-gray-400">Aguardando leitura...</p>
+            </div>
+          )}
+
+          {qrError && <p className="text-sm text-red-600">{qrError}</p>}
+
+          <Button type="button" onClick={handleGenerateQrCode} disabled={generatingQr}>
+            {generatingQr ? 'Gerando...' : qrCode ? 'Gerar QR code novo' : 'Gerar QR code'}
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { TenantPrismaService } from '../../common/tenant-prisma.service';
-import { encrypt } from '../../common/crypto.util';
+import { EvolutionApiService } from '../../common/evolution-api.service';
+import { encrypt, decrypt } from '../../common/crypto.util';
 import { SaveWhatsappIntegrationDto } from './dto/save-whatsapp-integration.dto';
 
 @Injectable()
 export class IntegrationsService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly evolutionApi: EvolutionApiService,
+  ) {}
 
   async getWhatsapp() {
     const integration = await this.tenantPrisma.client.integration.findFirst({
@@ -35,7 +39,10 @@ export class IntegrationsService {
         data: {
           instanceName: dto.instanceName,
           credentialsEncrypted,
-          status: 'connected',
+          // Salvar a URL/API key não significa que o WhatsApp já está
+          // conectado — só depois de gerar e escanear o QR code é que
+          // sabemos isso de verdade (via getConnectionStatus).
+          status: 'disconnected',
         },
       });
     } else {
@@ -45,11 +52,71 @@ export class IntegrationsService {
           type: 'whatsapp_evolution',
           instanceName: dto.instanceName,
           credentialsEncrypted,
-          status: 'connected',
+          status: 'disconnected',
         },
       });
     }
 
     return this.getWhatsapp();
+  }
+
+  async generateQrCode() {
+    const integration = await this.tenantPrisma.client.integration.findFirst({
+      where: { type: 'whatsapp_evolution' },
+    });
+    if (!integration) {
+      throw new BadRequestException('Salve a URL e a API key antes de gerar o QR code.');
+    }
+
+    const { apiUrl, apiKey } = JSON.parse(decrypt(integration.credentialsEncrypted));
+
+    let result: { base64?: string; pairingCode?: string };
+    try {
+      result = await this.evolutionApi.createOrConnectInstance(
+        apiUrl,
+        apiKey,
+        integration.instanceName!,
+      );
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Erro ao gerar o QR code.');
+    }
+
+    if (!result.base64) {
+      throw new BadRequestException(
+        'A Evolution API não retornou um QR code. Confira a URL e a API key, ou tente de novo em alguns segundos.',
+      );
+    }
+
+    await this.tenantPrisma.client.integration.update({
+      where: { id: integration.id },
+      data: { status: 'pending' },
+    });
+
+    return { qrCodeBase64: result.base64, pairingCode: result.pairingCode };
+  }
+
+  async getConnectionStatus() {
+    const integration = await this.tenantPrisma.client.integration.findFirst({
+      where: { type: 'whatsapp_evolution' },
+    });
+    if (!integration) return { configured: false as const };
+
+    const { apiUrl, apiKey } = JSON.parse(decrypt(integration.credentialsEncrypted));
+    const { state } = await this.evolutionApi.getConnectionState(
+      apiUrl,
+      apiKey,
+      integration.instanceName!,
+    );
+
+    const status = state === 'open' ? 'connected' : state === 'connecting' ? 'pending' : 'disconnected';
+
+    if (status !== integration.status) {
+      await this.tenantPrisma.client.integration.update({
+        where: { id: integration.id },
+        data: { status },
+      });
+    }
+
+    return { configured: true as const, instanceName: integration.instanceName, status };
   }
 }
