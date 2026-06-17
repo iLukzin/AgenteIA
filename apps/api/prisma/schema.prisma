@@ -1,0 +1,290 @@
+// Schema Prisma — mapeia exatamente as tabelas criadas pelo
+// schema-banco-dados.sql no Supabase. Como as tabelas já existem,
+// NÃO use `prisma migrate dev` (ele tentaria criar tudo de novo).
+// Use apenas `npx prisma generate`. Se quiser confirmar que este
+// arquivo bate 100% com o banco real, rode `npx prisma db pull`
+// e compare o resultado com este arquivo antes de seguir.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Plan {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String   @db.VarChar(50)
+  monthlyPrice          Decimal  @default(0) @map("monthly_price") @db.Decimal(10, 2)
+  messageLimit          Int      @map("message_limit")
+  whatsappNumbersLimit  Int      @default(1) @map("whatsapp_numbers_limit")
+  features              Json     @default("{}")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  companies Company[]
+
+  @@map("plans")
+}
+
+model Company {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId           String?  @map("plan_id") @db.Uuid
+  name             String   @db.VarChar(150)
+  slug             String   @unique @db.VarChar(150)
+  documentNumber   String?  @map("document_number") @db.VarChar(20)
+  phone            String?  @db.VarChar(20)
+  whatsappNumber   String?  @map("whatsapp_number") @db.VarChar(20)
+  address          Json?
+  businessHours    Json     @default("{}") @map("business_hours")
+  socialLinks      Json?    @default("{}") @map("social_links")
+  aiPersonality    String   @default("profissional") @map("ai_personality") @db.VarChar(30)
+  greetingMessage  String?  @map("greeting_message")
+  awayMessage      String?  @map("away_message")
+  closingMessage   String?  @map("closing_message")
+  handoffMessage   String?  @map("handoff_message")
+  status           String   @default("active") @db.VarChar(20)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @map("updated_at")
+
+  plan          Plan?          @relation(fields: [planId], references: [id])
+  users         User[]
+  employees     Employee[]
+  services      Service[]
+  customers     Customer[]
+  conversations Conversation[]
+  messages      Message[]
+  appointments  Appointment[]
+  leads         Lead[]
+  documents     Document[]
+  documentChunks DocumentChunk[]
+  embeddings    Embedding[]
+  integrations  Integration[]
+  logs          Log[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  name         String    @db.VarChar(150)
+  email        String    @unique @db.VarChar(150)
+  passwordHash String    @map("password_hash")
+  role         String    @default("admin") @db.VarChar(20)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  company              Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedConversations Conversation[] @relation("AssignedUser")
+  uploadedDocuments    Document[]
+  logs                 Log[]
+
+  @@map("users")
+}
+
+model Employee {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  name          String   @db.VarChar(150)
+  specialties   Json     @default("[]")
+  workSchedule  Json     @default("{}") @map("work_schedule")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("employees")
+}
+
+model Service {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  name            String   @db.VarChar(150)
+  description     String?
+  price           Decimal? @db.Decimal(10, 2)
+  durationMinutes Int      @default(30) @map("duration_minutes")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+model Customer {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  name                String?   @db.VarChar(150)
+  phone               String    @db.VarChar(20)
+  email               String?   @db.VarChar(150)
+  tags                Json      @default("[]")
+  notes               String?
+  memorySummary       String?   @map("memory_summary")
+  memoryPreferences   Json      @default("{}") @map("memory_preferences")
+  lastInteractionAt   DateTime? @map("last_interaction_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  appointments  Appointment[]
+  leads         Lead[]
+
+  @@unique([companyId, phone])
+  @@map("customers")
+}
+
+model Conversation {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  channel         String    @default("whatsapp") @db.VarChar(20)
+  status          String    @default("open") @db.VarChar(20)
+  assignedUserId  String?   @map("assigned_user_id") @db.Uuid
+  startedAt       DateTime  @default(now()) @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedUser User?     @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  conversationId  String   @map("conversation_id") @db.Uuid
+  senderType      String   @map("sender_type") @db.VarChar(20)
+  content         String
+  messageType     String   @default("text") @map("message_type") @db.VarChar(20)
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Appointment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  customerId      String   @map("customer_id") @db.Uuid
+  serviceId       String?  @map("service_id") @db.Uuid
+  employeeId      String?  @map("employee_id") @db.Uuid
+  scheduledAt     DateTime @map("scheduled_at")
+  durationMinutes Int      @default(30) @map("duration_minutes")
+  status          String   @default("scheduled") @db.VarChar(20)
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  service  Service?  @relation(fields: [serviceId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@map("appointments")
+}
+
+model Lead {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  customerId      String   @map("customer_id") @db.Uuid
+  source          String?  @default("whatsapp") @db.VarChar(50)
+  status          String   @default("new") @db.VarChar(20)
+  estimatedValue  Decimal? @map("estimated_value") @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("leads")
+}
+
+model Document {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  uploadedBy   String?  @map("uploaded_by") @db.Uuid
+  filename     String   @db.VarChar(255)
+  fileType     String   @map("file_type") @db.VarChar(10)
+  storagePath  String   @map("storage_path")
+  status       String   @default("processing") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploader User?          @relation(fields: [uploadedBy], references: [id])
+  chunks   DocumentChunk[]
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  documentId  String   @map("document_id") @db.Uuid
+  chunkIndex  Int      @map("chunk_index")
+  content     String
+  tokenCount  Int?     @map("token_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  embedding Embedding?
+
+  @@map("document_chunks")
+}
+
+model Embedding {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  chunkId   String   @unique @map("chunk_id") @db.Uuid
+  // pgvector — não é manipulado via Prisma Client diretamente (sem
+  // suporte tipado nativo); a busca semântica usa $queryRaw no módulo
+  // de IA (fora do escopo deste painel administrativo).
+  embedding Unsupported("vector(1536)")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  chunk   DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@map("embeddings")
+}
+
+model Integration {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  type                  String   @default("whatsapp_evolution") @db.VarChar(30)
+  instanceName          String?  @unique @map("instance_name") @db.VarChar(100)
+  credentialsEncrypted  String   @map("credentials_encrypted")
+  status                String   @default("disconnected") @db.VarChar(20)
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("integrations")
+}
+
+model Log {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String?  @map("company_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String?  @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.Uuid
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@map("logs")
+}
