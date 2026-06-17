@@ -1,0 +1,28 @@
+# Dependências
+node_modules/
+**/node_modules/
+
+# Variáveis de ambiente — NUNCA suba arquivos com segredos reais.
+# Os .env.example continuam versionados de propósito, como modelo.
+.env
+.env.local
+.env.*.local
+apps/api/.env
+apps/web/.env.local
+
+# Builds
+apps/api/dist/
+apps/web/.next/
+apps/web/out/
+
+# Prisma
+apps/api/prisma/generated/
+
+# Logs e arquivos de sistema
+*.log
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/*
+!.vscode/extensions.json

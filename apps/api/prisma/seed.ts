@@ -16,10 +16,10 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = 'admin@minhaempresa.com.br';
-const ADMIN_PASSWORD = 'troque-esta-senha-123';
-const COMPANY_NAME = 'Minha Empresa Exemplo';
-const COMPANY_SLUG = 'minha-empresa-exemplo';
+const ADMIN_EMAIL = 'lucas@fortitude.com';
+const ADMIN_PASSWORD = '123456';
+const COMPANY_NAME = 'Fortitude';
+const COMPANY_SLUG = 'fortitude';
 
 async function main() {
   let plan = await prisma.plan.findFirst({ where: { name: 'Starter' } });
