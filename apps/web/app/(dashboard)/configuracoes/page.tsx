@@ -7,6 +7,11 @@ import { Input, Label, Textarea, Select } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+interface DayHours {
+  abre: string;
+  fecha: string;
+}
+
 interface Company {
   id: string;
   name: string;
@@ -17,7 +22,18 @@ interface Company {
   awayMessage: string | null;
   closingMessage: string | null;
   handoffMessage: string | null;
+  businessHours: Record<string, DayHours | null> | null;
 }
+
+const WEEK_DAYS: { key: string; label: string }[] = [
+  { key: 'seg', label: 'Segunda' },
+  { key: 'ter', label: 'Terça' },
+  { key: 'qua', label: 'Quarta' },
+  { key: 'qui', label: 'Quinta' },
+  { key: 'sex', label: 'Sexta' },
+  { key: 'sab', label: 'Sábado' },
+  { key: 'dom', label: 'Domingo' },
+];
 
 function CompanySettingsForm() {
   const [company, setCompany] = useState<Company | null>(null);
@@ -33,6 +49,12 @@ function CompanySettingsForm() {
     setCompany((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  function updateDayHours(day: string, value: DayHours | null) {
+    setCompany((prev) =>
+      prev ? { ...prev, businessHours: { ...(prev.businessHours ?? {}), [day]: value } } : prev,
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!company) return;
@@ -40,6 +62,13 @@ function CompanySettingsForm() {
     setMessage(null);
     setError(null);
     try {
+      // Sempre manda os 7 dias explicitamente (fechado = null) — assim
+      // um dia que a pessoa nunca chegou a marcar não fica "undefined"
+      // (o que o agente trataria como sem restrição, ou seja, aberto).
+      const businessHours = Object.fromEntries(
+        WEEK_DAYS.map((d) => [d.key, company.businessHours?.[d.key] ?? null]),
+      );
+
       await api.patch('/companies/me', {
         name: company.name,
         phone: company.phone,
@@ -49,6 +78,7 @@ function CompanySettingsForm() {
         awayMessage: company.awayMessage,
         closingMessage: company.closingMessage,
         handoffMessage: company.handoffMessage,
+        businessHours,
       });
       setMessage('Configurações salvas.');
     } catch (err) {
@@ -82,6 +112,53 @@ function CompanySettingsForm() {
               onChange={(e) => update('whatsappNumber', e.target.value)}
             />
           </div>
+        </div>
+      </Card>
+
+      <Card className="space-y-4">
+        <h2 className="text-sm font-medium text-gray-700">Horário de funcionamento</h2>
+        <p className="text-sm text-gray-500">
+          Marque os dias em que a empresa atende e o horário de cada um. Fora desses horários, o
+          agente responde automaticamente com a "Mensagem fora do horário" abaixo, sem chamar a
+          IA. Um dia desmarcado é tratado como fechado nesse dia.
+        </p>
+        <div className="space-y-2">
+          {WEEK_DAYS.map((day) => {
+            const hours = company.businessHours?.[day.key] ?? null;
+            return (
+              <div key={day.key} className="flex items-center gap-3">
+                <label className="flex items-center gap-2 w-28 text-sm text-gray-700 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!!hours}
+                    onChange={(e) =>
+                      updateDayHours(day.key, e.target.checked ? { abre: '09:00', fecha: '18:00' } : null)
+                    }
+                  />
+                  {day.label}
+                </label>
+                {hours ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      className="w-32"
+                      value={hours.abre}
+                      onChange={(e) => updateDayHours(day.key, { ...hours, abre: e.target.value })}
+                    />
+                    <span className="text-sm text-gray-400">até</span>
+                    <Input
+                      type="time"
+                      className="w-32"
+                      value={hours.fecha}
+                      onChange={(e) => updateDayHours(day.key, { ...hours, fecha: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-400">Fechado</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </Card>
 
