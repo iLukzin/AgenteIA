@@ -258,6 +258,38 @@ export class AgentService {
     return rows[0] ?? null;
   }
 
+  /**
+   * Recebe os eventos de "connection.update" da Evolution API e mantém o
+   * status salvo da integração sempre fiel à conexão real do WhatsApp —
+   * assim o painel sabe identificar sozinho, sem precisar que alguém
+   * gere um QR code de novo, se o número caiu ou foi desconectado do
+   * celular.
+   */
+  async handleConnectionUpdate(rawPayload: any): Promise<void> {
+    const instanceName: string | undefined = rawPayload?.instance;
+    const state: string | undefined = rawPayload?.data?.state;
+    if (!instanceName || !state) return;
+
+    const company = await this.findCompanyByInstance(instanceName);
+    if (!company) {
+      this.logger.warn(`Atualização de conexão de instância desconhecida: ${instanceName}`);
+      return;
+    }
+
+    const status = state === 'open' ? 'connected' : state === 'connecting' ? 'pending' : 'disconnected';
+
+    await this.prisma.runInTenant(company.company_id, (tx) =>
+      tx.integration.updateMany({
+        where: { type: 'whatsapp_evolution', instanceName },
+        data: { status },
+      }),
+    );
+
+    this.logger.log(
+      `WhatsApp da empresa ${company.company_id} (instância ${instanceName}) mudou para "${status}".`,
+    );
+  }
+
   private buildSystemPrompt(
     company: CompanyLookupRow,
     services: ServiceRow[],

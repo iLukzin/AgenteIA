@@ -16,8 +16,16 @@ export class WhatsappWebhookController {
     // ficam só no log do servidor por enquanto.
     res.status(200).json({ received: true });
 
-    this.agentService.handleIncomingMessage(payload).catch((err) => {
-      console.error('Erro ao processar mensagem do WhatsApp:', err);
-    });
+    const event = payload?.event;
+
+    if (event === 'messages.upsert') {
+      this.agentService.handleIncomingMessage(payload).catch((err) => {
+        console.error('Erro ao processar mensagem do WhatsApp:', err);
+      });
+    } else if (event === 'connection.update') {
+      this.agentService.handleConnectionUpdate(payload).catch((err) => {
+        console.error('Erro ao processar atualização de conexão do WhatsApp:', err);
+      });
+    }
   }
 }

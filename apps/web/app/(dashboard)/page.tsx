@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/card';
 
@@ -13,16 +14,32 @@ interface Summary {
   leadsByStatus: { status: string; count: number }[];
 }
 
+interface WhatsappStatus {
+  configured: boolean;
+  status?: string;
+}
+
 export default function OverviewPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [whatsapp, setWhatsapp] = useState<WhatsappStatus | null>(null);
 
   useEffect(() => {
     api
       .get<Summary>('/dashboard/summary')
       .then(setSummary)
       .catch(() => setError('Não foi possível carregar os indicadores.'));
+
+    // Falha aqui é apenas omitida — o aviso de desconexão é um extra,
+    // não pode impedir o resto da página de carregar.
+    api
+      .get<WhatsappStatus>('/integrations/whatsapp')
+      .then(setWhatsapp)
+      .catch(() => {});
   }, []);
+
+  const whatsappDisconnected =
+    whatsapp?.configured && whatsapp.status && whatsapp.status !== 'connected';
 
   return (
     <div>
@@ -30,6 +47,21 @@ export default function OverviewPage() {
       <p className="text-sm text-gray-500 mb-6">
         Resumo da atividade do seu agente de IA.
       </p>
+
+      {whatsappDisconnected && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            <span className="font-medium">Seu WhatsApp está desconectado.</span> O agente de IA
+            não está conseguindo responder aos seus clientes agora.
+          </p>
+          <Link
+            href="/configuracoes"
+            className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+          >
+            Reconectar
+          </Link>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -69,3 +101,4 @@ export default function OverviewPage() {
     </div>
   );
 }
+

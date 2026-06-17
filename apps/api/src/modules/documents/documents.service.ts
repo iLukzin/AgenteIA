@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { TenantPrismaService } from '../../common/tenant-prisma.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RagService } from '../rag/rag.service';
@@ -17,16 +17,24 @@ export class DocumentsService {
   async create(dto: CreateDocumentDto) {
     const companyId = this.tenantPrisma.companyId;
 
-    const document = await this.tenantPrisma.client.document.create({
-      data: {
-        filename: dto.filename,
-        fileType: 'text',
-        storagePath: 'inline', // não há storage real ainda — texto vive só como chunks indexados
-        status: 'processing',
-        companyId,
-        uploadedBy: this.tenantPrisma.userId,
-      },
-    });
+    let document;
+    try {
+      document = await this.tenantPrisma.client.document.create({
+        data: {
+          filename: dto.filename,
+          fileType: 'text',
+          storagePath: 'inline', // não há storage real ainda — texto vive só como chunks indexados
+          status: 'processing',
+          companyId,
+          uploadedBy: this.tenantPrisma.userId,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Falha ao criar o registro do documento', err as Error);
+      throw new InternalServerErrorException(
+        'Não foi possível salvar este documento. Tente de novo em alguns instantes.',
+      );
+    }
 
     // Gera os embeddings de forma síncrona — tudo bem para o tamanho de
     // texto que cabe num campo de "colar conteúdo" no painel. Para
@@ -53,8 +61,16 @@ export class DocumentsService {
   }
 
   async delete(id: string) {
-    // onDelete: Cascade no schema cuida dos chunks e embeddings junto.
-    await this.tenantPrisma.client.document.delete({ where: { id } });
-    return { deleted: true };
+    try {
+      // onDelete: Cascade no banco cuida dos chunks e embeddings junto.
+      await this.tenantPrisma.client.document.delete({ where: { id } });
+      return { deleted: true };
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        throw new NotFoundException('Documento não encontrado.');
+      }
+      this.logger.error(`Falha ao excluir documento ${id}`, err as Error);
+      throw new InternalServerErrorException('Não foi possível excluir este documento.');
+    }
   }
 }

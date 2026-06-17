@@ -122,6 +122,11 @@ export class EvolutionApiService {
    * (MESSAGES_UPSERT). Sem isso, o WhatsApp conecta normalmente, mas
    * nenhuma mensagem recebida chega até o nosso backend — o agente de
    * IA nunca é acionado.
+   *
+   * O formato exigido pelo corpo da requisição varia entre versões da
+   * Evolution API — algumas esperam os campos direto na raiz, outras
+   * exigem tudo encapsulado dentro de uma propriedade "webhook". Por
+   * isso tentamos os dois formatos antes de desistir.
    */
   async setWebhook(
     apiUrl: string,
@@ -130,30 +135,44 @@ export class EvolutionApiService {
     webhookUrl: string,
   ): Promise<void> {
     const base = this.normalize(apiUrl);
-    let res: Response;
-    try {
-      res = await fetch(`${base}/webhook/set/${instanceName}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: apiKey },
-        body: JSON.stringify({
-          enabled: true,
-          url: webhookUrl,
-          webhookByEvents: false,
-          webhookBase64: false,
-          events: ['MESSAGES_UPSERT'],
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-    } catch {
-      throw new Error('Não foi possível conectar à Evolution API para configurar o webhook.');
+    const url = `${base}/webhook/set/${instanceName}`;
+    const headers = { 'Content-Type': 'application/json', apikey: apiKey };
+
+    const wrappedBody = {
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: false,
+        webhookBase64: false,
+        events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+      },
+    };
+    const flatBody = {
+      enabled: true,
+      url: webhookUrl,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+    };
+
+    let lastError: string | undefined;
+
+    for (const body of [wrappedBody, flatBody]) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (res.ok) return; // sucesso, não precisa tentar o outro formato
+        lastError = `(${res.status}) ${await res.text().catch(() => '')}`.trim();
+      } catch {
+        lastError = 'Não foi possível conectar à Evolution API para configurar o webhook.';
+      }
     }
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(
-        `A Evolution API recusou configurar o webhook (${res.status}). ${body}`.trim(),
-      );
-    }
+    throw new Error(`A Evolution API recusou configurar o webhook. ${lastError ?? ''}`.trim());
   }
 
   private normalize(apiUrl: string): string {

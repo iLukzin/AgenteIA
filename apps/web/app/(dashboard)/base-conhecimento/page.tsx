@@ -45,8 +45,12 @@ export default function BaseConhecimentoPage() {
   }
 
   async function handleDelete(id: string) {
-    await api.delete(`/documents/${id}`);
-    load();
+    try {
+      await api.delete(`/documents/${id}`);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erro ao excluir documento.');
+    }
   }
 
   return (
