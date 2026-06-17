@@ -1,4 +1,13 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// Defesa contra um erro de configuração fácil de cometer: se alguém
+// colar a URL da API na Vercel sem o "https://" na frente, o fetch()
+// do navegador interpreta isso como um caminho relativo ao próprio
+// painel (não como um endereço de internet), e TODA chamada à API
+// falha com 404 — sem nenhuma mensagem que aponte pra causa real.
+const API_URL = /^https?:\/\//i.test(RAW_API_URL) ? RAW_API_URL : `https://${RAW_API_URL}`;
+
+export const apiUrl = API_URL;
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

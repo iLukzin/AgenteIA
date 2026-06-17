@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '@/lib/api';
+import { api, apiUrl, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Textarea, Select } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -132,7 +132,6 @@ interface WhatsappIntegration {
 }
 
 function WhatsappIntegrationForm() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   const webhookUrl = `${apiUrl}/webhooks/whatsapp`;
 
   const [integration, setIntegration] = useState<WhatsappIntegration | null>(null);
