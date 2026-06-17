@@ -262,6 +262,7 @@ export class AgentService {
     company: CompanyLookupRow,
     services: ServiceRow[],
     relevantChunks: string[],
+    isFirstMessage: boolean,
   ): string {
     const personality =
       PERSONALITY_INSTRUCTIONS[company.ai_personality] || PERSONALITY_INSTRUCTIONS.profissional;
@@ -276,6 +277,17 @@ export class AgentService {
       ? relevantChunks.map((c, i) => `[Trecho ${i + 1}] ${c}`).join('\n\n')
       : 'Nenhuma informação adicional encontrada na base de conhecimento para esta pergunta.';
 
+    const greetingInstruction =
+      isFirstMessage && company.greeting_message
+        ? `\n- Esta é a primeira mensagem desta conversa: comece sua resposta no espírito de "${company.greeting_message}" antes de continuar.`
+        : '';
+    const closingInstruction = company.closing_message
+      ? `\n- Se o cliente estiver encerrando a conversa (se despedindo, agradecendo e saindo), encerre no espírito de "${company.closing_message}".`
+      : '';
+    const handoffInstruction = company.handoff_message
+      ? `\n- Ao usar a ferramenta request_human_handoff, avise o cliente no espírito de "${company.handoff_message}".`
+      : '';
+
     return `Você é o atendente virtual da empresa "${company.name}", conversando por WhatsApp.
 ${personality}
 
@@ -289,7 +301,7 @@ Regras importantes:
 - Responda sempre em português do Brasil, em mensagens curtas, adequadas para WhatsApp.
 - Só use a ferramenta create_appointment depois de confirmar serviço e data/hora com o cliente.
 - Se não tiver certeza de algo, ou o cliente pedir para falar com uma pessoa, use request_human_handoff.
-- Nunca invente preços, horários ou informações que não estejam nos dados acima.`;
+- Nunca invente preços, horários ou informações que não estejam nos dados acima.${greetingInstruction}${closingInstruction}${handoffInstruction}`;
   }
 
   private async runAgentLoop(ctx: {
@@ -301,7 +313,15 @@ Regras importantes:
     conversationId: string;
   }): Promise<string> {
     const messages: ChatMessage[] = [
-      { role: 'system', content: this.buildSystemPrompt(ctx.company, ctx.services, ctx.relevantChunks) },
+      {
+        role: 'system',
+        content: this.buildSystemPrompt(
+          ctx.company,
+          ctx.services,
+          ctx.relevantChunks,
+          ctx.history.length <= 1,
+        ),
+      },
       ...ctx.history.map((m): ChatMessage => ({
         role: m.senderType === 'customer' ? 'user' : 'assistant',
         content: m.content,

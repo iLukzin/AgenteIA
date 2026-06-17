@@ -60,7 +60,7 @@ export class IntegrationsService {
     return this.getWhatsapp();
   }
 
-  async generateQrCode() {
+  async generateQrCode(webhookUrl?: string) {
     const integration = await this.tenantPrisma.client.integration.findFirst({
       where: { type: 'whatsapp_evolution' },
     });
@@ -92,7 +92,49 @@ export class IntegrationsService {
       data: { status: 'pending' },
     });
 
-    return { qrCodeBase64: result.base64, pairingCode: result.pairingCode };
+    // Aproveita o momento para já configurar o webhook também — se
+    // falhar, não impede de mostrar o QR code (a pessoa ainda
+    // consegue conectar o WhatsApp), só avisa que esse passo
+    // específico não funcionou.
+    let webhookConfigured = false;
+    let webhookError: string | undefined;
+    if (webhookUrl) {
+      try {
+        await this.evolutionApi.setWebhook(apiUrl, apiKey, integration.instanceName!, webhookUrl);
+        webhookConfigured = true;
+      } catch (err: any) {
+        webhookError = err.message;
+      }
+    }
+
+    return {
+      qrCodeBase64: result.base64,
+      pairingCode: result.pairingCode,
+      webhookConfigured,
+      webhookError,
+    };
+  }
+
+  // Reconfigura só o webhook, sem tocar na conexão — útil quando o
+  // WhatsApp já está conectado, mas o webhook nunca foi configurado
+  // (ex: instância criada antes dessa automação existir).
+  async configureWebhook(webhookUrl: string) {
+    const integration = await this.tenantPrisma.client.integration.findFirst({
+      where: { type: 'whatsapp_evolution' },
+    });
+    if (!integration) {
+      throw new BadRequestException('Salve a URL e a API key antes de configurar o webhook.');
+    }
+
+    const { apiUrl, apiKey } = JSON.parse(decrypt(integration.credentialsEncrypted));
+
+    try {
+      await this.evolutionApi.setWebhook(apiUrl, apiKey, integration.instanceName!, webhookUrl);
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Erro ao configurar o webhook.');
+    }
+
+    return { webhookConfigured: true };
   }
 
   async getConnectionStatus() {

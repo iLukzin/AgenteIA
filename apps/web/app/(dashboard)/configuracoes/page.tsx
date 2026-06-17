@@ -148,6 +148,10 @@ function WhatsappIntegrationForm() {
   const [generatingQr, setGeneratingQr] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
 
+  const [configuringWebhook, setConfiguringWebhook] = useState(false);
+  const [webhookMessage, setWebhookMessage] = useState<string | null>(null);
+  const [webhookError, setWebhookError] = useState<string | null>(null);
+
   useEffect(() => {
     api.get<WhatsappIntegration>('/integrations/whatsapp').then((data) => {
       setIntegration(data);
@@ -204,15 +208,39 @@ function WhatsappIntegrationForm() {
     setQrError(null);
     setMessage(null);
     try {
-      const result = await api.post<{ qrCodeBase64: string; pairingCode?: string }>(
-        '/integrations/whatsapp/qrcode',
-      );
+      const result = await api.post<{
+        qrCodeBase64: string;
+        pairingCode?: string;
+        webhookConfigured: boolean;
+        webhookError?: string;
+      }>('/integrations/whatsapp/qrcode', { webhookUrl });
       setQrCode(result.qrCodeBase64);
       setPairingCode(result.pairingCode ?? null);
+      if (!result.webhookConfigured) {
+        setQrError(
+          `QR code gerado, mas não consegui configurar o webhook automaticamente: ${
+            result.webhookError ?? 'erro desconhecido'
+          }. Use o botão "Configurar webhook" abaixo, ou configure manualmente na sua Evolution API.`,
+        );
+      }
     } catch (err) {
       setQrError(err instanceof ApiError ? err.message : 'Erro ao gerar o QR code.');
     } finally {
       setGeneratingQr(false);
+    }
+  }
+
+  async function handleConfigureWebhook() {
+    setConfiguringWebhook(true);
+    setWebhookMessage(null);
+    setWebhookError(null);
+    try {
+      await api.post('/integrations/whatsapp/webhook', { webhookUrl });
+      setWebhookMessage('Webhook configurado. Agora mensagens recebidas devem chegar ao agente.');
+    } catch (err) {
+      setWebhookError(err instanceof ApiError ? err.message : 'Erro ao configurar o webhook.');
+    } finally {
+      setConfiguringWebhook(false);
     }
   }
 
@@ -224,12 +252,14 @@ function WhatsappIntegrationForm() {
       </div>
 
       <p className="text-sm text-gray-500">
-        Crie uma instância na sua Evolution API e configure o webhook dela apontando para a URL
-        abaixo, com o evento <code className="text-xs bg-gray-100 px-1 rounded">MESSAGES_UPSERT</code> habilitado.
+        Ao gerar o QR code abaixo, tentamos configurar automaticamente o webhook na sua Evolution
+        API (evento <code className="text-xs bg-gray-100 px-1 rounded">MESSAGES_UPSERT</code>). Se
+        isso falhar, ou se sua instância já estava conectada antes dessa automação existir, use o
+        botão "Configurar webhook" para fazer isso manualmente sem precisar reconectar.
       </p>
 
       <div>
-        <Label>URL do webhook (cole na Evolution API)</Label>
+        <Label>URL do webhook</Label>
         <Input readOnly value={webhookUrl} onClick={(e) => (e.target as HTMLInputElement).select()} />
       </div>
 
@@ -310,6 +340,23 @@ function WhatsappIntegrationForm() {
           <Button type="button" onClick={handleGenerateQrCode} disabled={generatingQr}>
             {generatingQr ? 'Gerando...' : qrCode ? 'Gerar QR code novo' : 'Gerar QR code'}
           </Button>
+
+          <div className="pt-3 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-2">
+              Já conectado mas o agente não está respondendo às mensagens? Provavelmente o
+              webhook nunca foi configurado. Sem precisar desconectar nada:
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleConfigureWebhook}
+              disabled={configuringWebhook}
+            >
+              {configuringWebhook ? 'Configurando...' : 'Configurar webhook'}
+            </Button>
+            {webhookMessage && <p className="text-sm text-green-700 mt-2">{webhookMessage}</p>}
+            {webhookError && <p className="text-sm text-red-600 mt-2">{webhookError}</p>}
+          </div>
         </div>
       )}
     </Card>

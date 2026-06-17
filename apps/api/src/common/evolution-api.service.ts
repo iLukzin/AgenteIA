@@ -117,6 +117,45 @@ export class EvolutionApiService {
     }
   }
 
+  /**
+   * Diz à Evolution API para onde mandar os eventos de mensagem nova
+   * (MESSAGES_UPSERT). Sem isso, o WhatsApp conecta normalmente, mas
+   * nenhuma mensagem recebida chega até o nosso backend — o agente de
+   * IA nunca é acionado.
+   */
+  async setWebhook(
+    apiUrl: string,
+    apiKey: string,
+    instanceName: string,
+    webhookUrl: string,
+  ): Promise<void> {
+    const base = this.normalize(apiUrl);
+    let res: Response;
+    try {
+      res = await fetch(`${base}/webhook/set/${instanceName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: apiKey },
+        body: JSON.stringify({
+          enabled: true,
+          url: webhookUrl,
+          webhookByEvents: false,
+          webhookBase64: false,
+          events: ['MESSAGES_UPSERT'],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new Error('Não foi possível conectar à Evolution API para configurar o webhook.');
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(
+        `A Evolution API recusou configurar o webhook (${res.status}). ${body}`.trim(),
+      );
+    }
+  }
+
   private normalize(apiUrl: string): string {
     return apiUrl.replace(/\/$/, '');
   }
