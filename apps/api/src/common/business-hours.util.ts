@@ -56,6 +56,17 @@ export function isWithinBusinessHours(
   const nowMinutes = hour * 60 + minute;
   const [openH, openM] = todayHours.abre.split(':').map(Number);
   const [closeH, closeM] = todayHours.fecha.split(':').map(Number);
+  const openMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
 
-  return nowMinutes >= openH * 60 + openM && nowMinutes <= closeH * 60 + closeM;
+  if (closeMinutes <= openMinutes) {
+    // O horário de fechamento "cruza" a virada do dia — ex: fecha às
+    // 00:00 (meia-noite) ou, num bar, abre 18:00 e fecha 02:00. Sem
+    // isso, "fecha: 00:00" virava 0 minuto do dia, e a comparação
+    // normal (nowMinutes <= 0) nunca seria verdadeira — ou seja,
+    // "fechar à meia-noite" era lido como "nunca está aberto".
+    return nowMinutes >= openMinutes || nowMinutes <= closeMinutes;
+  }
+
+  return nowMinutes >= openMinutes && nowMinutes <= closeMinutes;
 }
