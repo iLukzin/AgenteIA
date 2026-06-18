@@ -149,6 +149,37 @@ export class IntegrationsService {
     return { webhookConfigured: true };
   }
 
+  // Desconecta o número atual (logout na Evolution API) para liberar a
+  // instância e permitir escanear um QR code novo com outro número.
+  // Mesmo que a chamada à Evolution API falhe (ex: instância já não
+  // existia mais lá), ainda assim marcamos como desconectado por aqui
+  // — o objetivo de quem clica nesse botão é "poder conectar um número
+  // novo", e isso continua possível mesmo nesse cenário.
+  async disconnect() {
+    const integration = await this.tenantPrisma.client.integration.findFirst({
+      where: { type: 'whatsapp_evolution' },
+    });
+    if (!integration) {
+      throw new BadRequestException('Nenhuma integração de WhatsApp configurada.');
+    }
+
+    const { apiUrl, apiKey } = JSON.parse(decrypt(integration.credentialsEncrypted));
+
+    let warning: string | undefined;
+    try {
+      await this.evolutionApi.logoutInstance(apiUrl, apiKey, integration.instanceName!);
+    } catch (err: any) {
+      warning = err.message;
+    }
+
+    await this.tenantPrisma.client.integration.update({
+      where: { id: integration.id },
+      data: { status: 'disconnected' },
+    });
+
+    return { disconnected: true as const, warning };
+  }
+
   async getConnectionStatus() {
     const integration = await this.tenantPrisma.client.integration.findFirst({
       where: { type: 'whatsapp_evolution' },

@@ -228,6 +228,10 @@ function WhatsappIntegrationForm() {
   const [webhookMessage, setWebhookMessage] = useState<string | null>(null);
   const [webhookError, setWebhookError] = useState<string | null>(null);
 
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectMessage, setDisconnectMessage] = useState<string | null>(null);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
   useEffect(() => {
     api.get<WhatsappIntegration>('/integrations/whatsapp').then((data) => {
       setIntegration(data);
@@ -317,6 +321,34 @@ function WhatsappIntegrationForm() {
       setWebhookError(err instanceof ApiError ? err.message : 'Erro ao configurar o webhook.');
     } finally {
       setConfiguringWebhook(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    const confirmed = window.confirm(
+      'Desconectar este número de WhatsApp? O agente para de receber e responder mensagens até você conectar um número novo (gerando um QR code).',
+    );
+    if (!confirmed) return;
+
+    setDisconnecting(true);
+    setDisconnectMessage(null);
+    setDisconnectError(null);
+    try {
+      const result = await api.post<{ disconnected: true; warning?: string }>(
+        '/integrations/whatsapp/disconnect',
+      );
+      setIntegration((prev) => (prev ? { ...prev, status: 'disconnected' } : prev));
+      setQrCode(null);
+      setPairingCode(null);
+      setDisconnectMessage(
+        result.warning
+          ? `Número desconectado por aqui, mas a Evolution API respondeu: ${result.warning}`
+          : 'Número desconectado. Gere um QR code novo para conectar outro número.',
+      );
+    } catch (err) {
+      setDisconnectError(err instanceof ApiError ? err.message : 'Erro ao desconectar.');
+    } finally {
+      setDisconnecting(false);
     }
   }
 
@@ -432,6 +464,18 @@ function WhatsappIntegrationForm() {
             </Button>
             {webhookMessage && <p className="text-sm text-green-700 mt-2">{webhookMessage}</p>}
             {webhookError && <p className="text-sm text-red-600 mt-2">{webhookError}</p>}
+          </div>
+
+          <div className="pt-3 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-2">
+              Quer trocar para outro número de telefone? Desconecte o número atual e depois gere
+              um QR code novo para escanear com o número novo.
+            </p>
+            <Button type="button" variant="danger" onClick={handleDisconnect} disabled={disconnecting}>
+              {disconnecting ? 'Desconectando...' : 'Desconectar número'}
+            </Button>
+            {disconnectMessage && <p className="text-sm text-green-700 mt-2">{disconnectMessage}</p>}
+            {disconnectError && <p className="text-sm text-red-600 mt-2">{disconnectError}</p>}
           </div>
         </div>
       )}

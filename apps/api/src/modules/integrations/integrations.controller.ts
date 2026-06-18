@@ -33,6 +33,13 @@ export class IntegrationsController {
     return this.integrationsService.configureWebhook(dto.webhookUrl);
   }
 
+  // Desconecta o número atual (logout), liberando a instância para
+  // conectar um número diferente em seguida.
+  @Post('whatsapp/disconnect')
+  disconnect() {
+    return this.integrationsService.disconnect();
+  }
+
   // O painel chama isso periodicamente enquanto o QR code está na
   // tela, para saber quando o celular terminou de escanear.
   @Get('whatsapp/status')

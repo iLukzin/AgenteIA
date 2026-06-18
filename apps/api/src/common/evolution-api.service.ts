@@ -118,6 +118,34 @@ export class EvolutionApiService {
   }
 
   /**
+   * Desconecta o número de WhatsApp atual da instância (logout), sem
+   * apagar a instância em si — ela continua existindo na Evolution
+   * API, só sem nenhum número vinculado, pronta para um novo QR code
+   * ser escaneado com outro número.
+   */
+  async logoutInstance(apiUrl: string, apiKey: string, instanceName: string): Promise<void> {
+    const base = this.normalize(apiUrl);
+    let res: Response;
+    try {
+      res = await fetch(`${base}/instance/logout/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: apiKey },
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new Error('Não foi possível conectar à Evolution API para desconectar o número.');
+    }
+
+    // 404 aqui normalmente significa "essa instância já não tinha
+    // nenhum número conectado" — não é um erro real do ponto de vista
+    // de quem só queria desconectar.
+    if (!res.ok && res.status !== 404) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`A Evolution API recusou desconectar o número (${res.status}). ${body}`.trim());
+    }
+  }
+
+  /**
    * Diz à Evolution API para onde mandar os eventos de mensagem nova
    * (MESSAGES_UPSERT). Sem isso, o WhatsApp conecta normalmente, mas
    * nenhuma mensagem recebida chega até o nosso backend — o agente de
