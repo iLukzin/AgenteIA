@@ -221,7 +221,13 @@ export class AgentService {
     // Passo 2: fora do horário de funcionamento, responde com a
     // mensagem padrão e nem chama a IA (mais rápido e mais barato).
     let replyText: string;
-    if (!isWithinBusinessHours(company.business_hours)) {
+    const withinHours = isWithinBusinessHours(company.business_hours);
+    this.logger.log(
+      `Checagem de horário para empresa ${company.company_id}: business_hours=${JSON.stringify(
+        company.business_hours,
+      )} (tipo: ${typeof company.business_hours}) => dentro do horário? ${withinHours}`,
+    );
+    if (!withinHours) {
       replyText =
         company.away_message ||
         'Estamos fora do horário de atendimento agora. Retornaremos assim que possível!';
